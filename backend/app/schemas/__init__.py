@@ -7,6 +7,12 @@ from app.schemas.user import (
     Token,
     TokenPayload
 )
+from app.schemas.book import (
+    BookBase,
+    BookCreate,
+    BookUpdate,
+    BookResponse
+)
 
 __all__ = [
     "UserBase",
@@ -15,5 +21,9 @@ __all__ = [
     "UserResponse",
     "AuthorProfileResponse",
     "Token",
-    "TokenPayload"
+    "TokenPayload",
+    "BookBase",
+    "BookCreate",
+    "BookUpdate",
+    "BookResponse"
 ]
