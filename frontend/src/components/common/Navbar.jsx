@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { BookOpen, Library, PlusCircle, LayoutDashboard, LogOut } from 'lucide-react';
+import { BookOpen, Library, PlusCircle, LogOut, BarChart2, ShieldAlert } from 'lucide-react';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -14,20 +14,21 @@ export default function Navbar() {
           <BookOpen size={20} /> NicheReader
         </Link>
         <Link to="/" style={{ textDecoration: 'none', color: '#4a5568' }}>Catalog</Link>
-        {user && (
-          <Link to="/library" style={{ textDecoration: 'none', color: '#4a5568', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <Library size={16} /> My Shelf
-          </Link>
-        )}
+        {user && <Link to="/library" style={{ textDecoration: 'none', color: '#4a5568', display: 'flex', alignItems: 'center', gap: '4px' }}><Library size={16} /> My Shelf</Link>}
         {user?.role === 'AUTHOR' && (
           <>
-            <Link to="/author/dashboard" style={{ textDecoration: 'none', color: '#2b6cb0', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 500 }}>
-              <LayoutDashboard size={16} /> Author Studio
-            </Link>
-            <Link to="/publish" style={{ textDecoration: 'none', color: '#4a5568', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <Link to="/publish" style={{ textDecoration: 'none', color: '#2b6cb0', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 500 }}>
               <PlusCircle size={16} /> Publish
             </Link>
+            <Link to="/author/dashboard" style={{ textDecoration: 'none', color: '#4a5568', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <BarChart2 size={16} /> Author Studio
+            </Link>
           </>
+        )}
+        {user?.role === 'ADMIN' && (
+          <Link to="/admin/review" style={{ textDecoration: 'none', color: '#c53030', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+            <ShieldAlert size={16} /> Review Queue
+          </Link>
         )}
       </div>
       <div>

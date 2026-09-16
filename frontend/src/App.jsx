@@ -9,6 +9,7 @@ import AuthorDashboardPage from './pages/author/AuthorDashboardPage';
 import LibraryPage from './pages/LibraryPage';
 import ReaderPage from './pages/ReaderPage';
 import LoginPage from './pages/LoginPage';
+import AdminReviewPage from './pages/admin/AdminReviewPage';
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
             <Route path="/book/:id" element={<BookDetailPage />} />
             <Route path="/publish" element={<PublishPage />} />
             <Route path="/author/dashboard" element={<AuthorDashboardPage />} />
+            <Route path="/admin/review" element={<AdminReviewPage />} />
             <Route path="/library" element={<LibraryPage />} />
             <Route path="/reader/:id" element={<ReaderPage />} />
             <Route path="/login" element={<LoginPage />} />

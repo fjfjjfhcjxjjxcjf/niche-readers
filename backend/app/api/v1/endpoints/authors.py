@@ -2,10 +2,8 @@ import os
 import uuid
 from decimal import Decimal
 from typing import List
-from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
 from app.api import deps
 from app.core.storage import get_storage
@@ -65,6 +63,7 @@ async def publish_author_book(
     author_profile = current_user.author_profile
     author_name = author_profile.display_name if author_profile else current_user.email.split("@")[0]
 
+    # Books are placed into PENDING_REVIEW queue for editorial oversight
     book = Book(
         title=title,
         author_name=author_name,
@@ -74,7 +73,7 @@ async def publish_author_book(
         language=language,
         publication_year=publication_year,
         availability_type=AvailabilityType.MARKETPLACE,
-        status=BookStatus.PUBLISHED,
+        status=BookStatus.PENDING_REVIEW,
         price=price,
         file_path=saved_file_path,
         file_format=file_format,
@@ -93,56 +92,50 @@ def get_author_dashboard(
 ):
     profile = current_user.author_profile
     if not profile:
-        return {
-            "total_books": 0,
-            "total_readers": 0,
-            "total_revenue": Decimal("0.00"),
-            "books": []
-        }
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Author profile not found")
 
-    author_books = db.query(Book).filter(Book.author_profile_id == profile.id).all()
-    analytics_list = []
-    overall_revenue = Decimal("0.00")
-    total_purchases_count = 0
+    books = db.query(Book).filter(Book.author_profile_id == profile.id).all()
+    book_analytics = []
+    total_revenue = Decimal("0.00")
+    total_sales_count = 0
 
-    for book in author_books:
+    for book in books:
         purchases = db.query(ShelfItem).filter(
             ShelfItem.book_id == book.id,
             ShelfItem.shelf_type == ShelfType.PURCHASED
         ).count()
-
-        saves = db.query(ShelfItem).filter(
+        shelf_adds = db.query(ShelfItem).filter(
             ShelfItem.book_id == book.id,
-            ShelfItem.shelf_type.in_([ShelfType.WANT_TO_READ, ShelfType.READING, ShelfType.FAVORITES])
+            ShelfItem.shelf_type != ShelfType.PURCHASED
         ).count()
 
-        book_revenue = Decimal(str(book.price)) * Decimal(purchases)
-        overall_revenue += book_revenue
-        total_purchases_count += purchases
+        rev = book.price * purchases
+        total_revenue += rev
+        total_sales_count += purchases
 
-        analytics_list.append(
+        book_analytics.append(
             BookAnalytics(
                 book_id=book.id,
                 title=book.title,
-                price=book.price,
                 status=book.status,
+                price=book.price,
                 total_purchases=purchases,
-                total_revenue=book_revenue,
-                shelf_saves_count=saves
+                total_revenue=rev,
+                shelf_saves_count=shelf_adds
             )
         )
 
-    return {
-        "total_books": len(author_books),
-        "total_readers": total_purchases_count,
-        "total_revenue": overall_revenue,
-        "books": analytics_list
-    }
+    return AuthorDashboardStats(
+        total_books=len(books),
+        total_readers=total_sales_count,
+        total_revenue=total_revenue,
+        books=book_analytics
+    )
 
 
 @router.patch("/books/{book_id}", response_model=BookResponse)
 def update_author_book(
-    book_id: UUID,
+    book_id: uuid.UUID,
     book_in: BookUpdate,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.require_role(UserRole.AUTHOR))
@@ -150,14 +143,13 @@ def update_author_book(
     profile = current_user.author_profile
     book = db.query(Book).filter(
         Book.id == book_id,
-        Book.author_profile_id == (profile.id if profile else None)
+        Book.author_profile_id == profile.id
     ).first()
 
     if not book:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found or access denied")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
 
-    update_data = book_in.model_dump(exclude_unset=True)
-    for field, val in update_data.items():
+    for field, val in book_in.model_dump(exclude_unset=True).items():
         setattr(book, field, val)
 
     db.commit()
