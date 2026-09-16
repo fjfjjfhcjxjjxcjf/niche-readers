@@ -6,11 +6,10 @@ import {
   ChevronLeft, 
   ChevronRight, 
   ArrowLeft, 
-  Sun, 
-  Moon, 
-  BookOpen, 
-  Type, 
-  List 
+  List, 
+  Highlighter, 
+  Trash2,
+  Check
 } from 'lucide-react';
 
 const THEMES = {
@@ -37,6 +36,13 @@ const THEMES = {
   }
 };
 
+const HIGHLIGHT_COLORS = {
+  yellow: 'rgba(254, 240, 138, 0.5)',
+  green: 'rgba(187, 247, 208, 0.5)',
+  blue: 'rgba(191, 219, 254, 0.5)',
+  pink: 'rgba(251, 207, 232, 0.5)'
+};
+
 export default function ReaderPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -50,7 +56,13 @@ export default function ReaderPage() {
   const [fontSize, setFontSize] = useState(100);
   const [toc, setToc] = useState([]);
   const [showToc, setShowToc] = useState(false);
-  const [currentLocation, setCurrentLocation] = useState('');
+  const [showNotes, setShowNotes] = useState(false);
+
+  // Annotations state
+  const [annotations, setAnnotations] = useState([]);
+  const [selectedRange, setSelectedRange] = useState(null);
+  const [activeColor, setActiveColor] = useState('yellow');
+  const [noteInput, setNoteInput] = useState('');
 
   const storageProgressKey = `reader_progress_${id}`;
 
@@ -68,20 +80,31 @@ export default function ReaderPage() {
     });
   };
 
+  const loadAnnotations = async () => {
+    try {
+      const res = await api.get(`/library/books/${id}/annotations`);
+      setAnnotations(res.data);
+      return res.data;
+    } catch (e) {
+      console.warn("Could not fetch remote annotations:", e);
+      return [];
+    }
+  };
+
   useEffect(() => {
     let book = null;
 
     const loadBookStream = async () => {
       try {
         setLoading(true);
-        const response = await api.get(`/library/content/${id}`, {
-          responseType: 'arraybuffer'
-        });
+        const [bookResponse, remoteAnnotations] = await Promise.all([
+          api.get(`/library/content/${id}`, { responseType: 'arraybuffer' }),
+          loadAnnotations()
+        ]);
 
-        book = ePub(response.data);
+        book = ePub(bookResponse.data);
         bookRef.current = book;
 
-        // Extract Table of Contents
         const navigation = await book.loaded.navigation;
         if (navigation && navigation.toc) {
           setToc(navigation.toc);
@@ -98,14 +121,30 @@ export default function ReaderPage() {
         applyTheme(currentTheme, rendition);
         rendition.themes.fontSize(`${fontSize}%`);
 
-        // Restore saved position or start from beginning
+        // Register saved annotations on the rendition
+        remoteAnnotations.forEach((anno) => {
+          rendition.annotations.add('highlight', anno.cfi_range, {}, (e) => {}, 'hl', {
+            fill: HIGHLIGHT_COLORS[anno.color] || HIGHLIGHT_COLORS.yellow
+          });
+        });
+
+        // Listen for text selection
+        rendition.on('selected', (cfiRange, contents) => {
+          book.getRange(cfiRange).then((range) => {
+            if (range) {
+              const text = range.toString();
+              if (text.trim()) {
+                setSelectedRange({ cfiRange, text });
+              }
+            }
+          });
+        });
+
         const savedCfi = localStorage.getItem(storageProgressKey);
         await rendition.display(savedCfi || undefined);
 
-        // Track reading progress on page change
         rendition.on('relocated', (location) => {
           if (location && location.start) {
-            setCurrentLocation(location.start.cfi);
             localStorage.setItem(storageProgressKey, location.start.cfi);
           }
         });
@@ -139,10 +178,42 @@ export default function ReaderPage() {
     }
   };
 
-  const jumpToHref = (href) => {
+  const saveCurrentHighlight = async () => {
+    if (!selectedRange) return;
+    try {
+      const res = await api.post(`/library/books/${id}/annotations`, {
+        cfi_range: selectedRange.cfiRange,
+        highlighted_text: selectedRange.text,
+        note: noteInput.trim() || null,
+        color: activeColor
+      });
+
+      // Render highlight locally on epubjs
+      renditionRef.current?.annotations.add('highlight', selectedRange.cfiRange, {}, () => {}, 'hl', {
+        fill: HIGHLIGHT_COLORS[activeColor]
+      });
+
+      setAnnotations([res.data, ...annotations]);
+      setSelectedRange(null);
+      setNoteInput('');
+    } catch (e) {
+      console.error('Failed to save highlight', e);
+    }
+  };
+
+  const deleteAnnotation = async (annotationId, cfiRange) => {
+    try {
+      await api.delete(`/library/annotations/${annotationId}`);
+      renditionRef.current?.annotations.remove(cfiRange, 'highlight');
+      setAnnotations(annotations.filter((a) => a.id !== annotationId));
+    } catch (e) {
+      console.error('Failed to delete annotation', e);
+    }
+  };
+
+  const jumpToCfi = (cfi) => {
     if (renditionRef.current) {
-      renditionRef.current.display(href);
-      setShowToc(false);
+      renditionRef.current.display(cfi);
     }
   };
 
@@ -152,10 +223,10 @@ export default function ReaderPage() {
     <div style={{ background: themeConfig.bg, color: themeConfig.color, minHeight: 'calc(100vh - 60px)', transition: 'background 0.2s ease, color 0.2s ease' }}>
       <div style={{ maxWidth: '940px', margin: '0 auto', padding: '16px 20px' }}>
         
-        {/* Top Control Bar */}
+        {/* Navigation & Controls */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '16px', paddingBottom: '12px', borderBottom: `1px solid ${currentTheme === 'dark' ? '#2d3748' : '#e2e8f0'}` }}>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <button 
               onClick={() => navigate(-1)} 
               style={{ border: 'none', background: 'none', color: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px' }}
@@ -163,54 +234,95 @@ export default function ReaderPage() {
               <ArrowLeft size={16} /> Library
             </button>
             <button 
-              onClick={() => setShowToc(!showToc)} 
+              onClick={() => { setShowToc(!showToc); setShowNotes(false); }} 
               style={{ display: 'flex', alignItems: 'center', gap: '4px', border: `1px solid ${currentTheme === 'dark' ? '#4a5568' : '#cbd5e0'}`, background: 'none', color: 'inherit', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}
             >
               <List size={14} /> Contents
             </button>
+            <button 
+              onClick={() => { setShowNotes(!showNotes); setShowToc(false); }} 
+              style={{ display: 'flex', alignItems: 'center', gap: '4px', border: `1px solid ${currentTheme === 'dark' ? '#4a5568' : '#cbd5e0'}`, background: 'none', color: 'inherit', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}
+            >
+              <Highlighter size={14} /> Notes ({annotations.length})
+            </button>
           </div>
 
-          {/* Reader Preferences */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            {/* Font Size Buttons */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <button onClick={() => changeFontSize(-10)} style={{ padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', border: '1px solid #cbd5e0', background: 'none', color: 'inherit', fontWeight: 'bold' }}>A-</button>
-              <span style={{ fontSize: '13px', minWidth: '40px', textAlign: 'center' }}>{fontSize}%</span>
               <button onClick={() => changeFontSize(10)} style={{ padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', border: '1px solid #cbd5e0', background: 'none', color: 'inherit', fontWeight: 'bold' }}>A+</button>
             </div>
 
-            {/* Theme Selectors */}
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <button 
-                title="Light Mode"
-                onClick={() => changeTheme('light')} 
-                style={{ padding: '6px 10px', borderRadius: '4px', cursor: 'pointer', border: currentTheme === 'light' ? '2px solid #3182ce' : '1px solid #cbd5e0', background: '#fff', color: '#1a202c' }}
-              >
-                Light
-              </button>
-              <button 
-                title="Sepia Mode"
-                onClick={() => changeTheme('sepia')} 
-                style={{ padding: '6px 10px', borderRadius: '4px', cursor: 'pointer', border: currentTheme === 'sepia' ? '2px solid #b7791f' : '1px solid #cbd5e0', background: '#fbf0d9', color: '#5f4b32' }}
-              >
-                Sepia
-              </button>
-              <button 
-                title="Dark Mode"
-                onClick={() => changeTheme('dark')} 
-                style={{ padding: '6px 10px', borderRadius: '4px', cursor: 'pointer', border: currentTheme === 'dark' ? '2px solid #63b3ed' : '1px solid #4a5568', background: '#1a202c', color: '#e2e8f0' }}
-              >
-                Dark
-              </button>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              <button onClick={() => changeTheme('light')} style={{ padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', border: '1px solid #cbd5e0', background: '#fff', color: '#1a202c', fontSize: '12px' }}>Light</button>
+              <button onClick={() => changeTheme('sepia')} style={{ padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', border: '1px solid #cbd5e0', background: '#fbf0d9', color: '#5f4b32', fontSize: '12px' }}>Sepia</button>
+              <button onClick={() => changeTheme('dark')} style={{ padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', border: '1px solid #4a5568', background: '#1a202c', color: '#e2e8f0', fontSize: '12px' }}>Dark</button>
             </div>
 
-            {/* Pagination Controls */}
             <div style={{ display: 'flex', gap: '6px' }}>
               <button onClick={() => renditionRef.current?.prev()} style={{ padding: '6px 10px', borderRadius: '4px', cursor: 'pointer', border: '1px solid #cbd5e0', background: 'none', color: 'inherit' }}><ChevronLeft size={16} /></button>
               <button onClick={() => renditionRef.current?.next()} style={{ padding: '6px 10px', borderRadius: '4px', cursor: 'pointer', border: '1px solid #cbd5e0', background: 'none', color: 'inherit' }}><ChevronRight size={16} /></button>
             </div>
           </div>
         </div>
+
+        {/* Highlight Creation Floating Card */}
+        {selectedRange && (
+          <div style={{ background: currentTheme === 'dark' ? '#2d3748' : '#fff', border: `1px solid ${currentTheme === 'dark' ? '#4a5568' : '#e2e8f0'}`, padding: '16px', borderRadius: '8px', marginBottom: '16px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+            <p style={{ margin: '0 0 10px 0', fontSize: '13px', fontStyle: 'italic', color: '#718096' }}>"{selectedRange.text.slice(0, 90)}..."</p>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px' }}>
+              {Object.keys(HIGHLIGHT_COLORS).map((colorKey) => (
+                <button
+                  key={colorKey}
+                  onClick={() => setActiveColor(colorKey)}
+                  style={{
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '50%',
+                    border: activeColor === colorKey ? '2px solid #3182ce' : '1px solid #cbd5e0',
+                    background: HIGHLIGHT_COLORS[colorKey],
+                    cursor: 'pointer'
+                  }}
+                />
+              ))}
+              <input
+                type="text"
+                placeholder="Add an optional note..."
+                value={noteInput}
+                onChange={(e) => setNoteInput(e.target.value)}
+                style={{ flex: 1, padding: '6px 10px', borderRadius: '4px', border: '1px solid #cbd5e0', fontSize: '13px' }}
+              />
+              <button onClick={saveCurrentHighlight} style={{ background: '#2b6cb0', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>
+                Save
+              </button>
+              <button onClick={() => setSelectedRange(null)} style={{ background: 'none', border: 'none', color: '#a0aec0', cursor: 'pointer', fontSize: '13px' }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Annotations List Drawer */}
+        {showNotes && (
+          <div style={{ background: currentTheme === 'dark' ? '#2d3748' : '#fff', border: `1px solid ${currentTheme === 'dark' ? '#4a5568' : '#e2e8f0'}`, borderRadius: '8px', padding: '16px', marginBottom: '16px', maxHeight: '240px', overflowY: 'auto' }}>
+            <h4 style={{ margin: '0 0 12px 0', fontSize: '14px' }}>Saved Highlights & Notes</h4>
+            {annotations.length === 0 ? <p style={{ fontSize: '13px', color: '#a0aec0' }}>Select any text in the book to create your first highlight.</p> : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {annotations.map((a) => (
+                  <div key={a.id} style={{ borderLeft: `4px solid ${a.color}`, paddingLeft: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ cursor: 'pointer', flex: 1 }} onClick={() => jumpToCfi(a.cfi_range)}>
+                      <p style={{ margin: 0, fontSize: '13px', fontWeight: 500 }}>"{a.highlighted_text}"</p>
+                      {a.note && <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#718096' }}>Note: {a.note}</p>}
+                    </div>
+                    <button onClick={() => deleteAnnotation(a.id, a.cfi_range)} style={{ background: 'none', border: 'none', color: '#e53e3e', cursor: 'pointer', padding: '2px' }}>
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Table of Contents Drawer */}
         {showToc && (
@@ -221,7 +333,7 @@ export default function ReaderPage() {
                 {toc.map((item, idx) => (
                   <li key={idx} style={{ padding: '6px 0', borderBottom: '1px solid #edf2f7' }}>
                     <button 
-                      onClick={() => jumpToHref(item.href)}
+                      onClick={() => { renditionRef.current?.display(item.href); setShowToc(false); }}
                       style={{ background: 'none', border: 'none', color: '#3182ce', cursor: 'pointer', textAlign: 'left', fontSize: '14px', width: '100%' }}
                     >
                       {item.label}

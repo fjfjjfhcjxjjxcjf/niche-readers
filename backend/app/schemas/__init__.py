@@ -18,7 +18,11 @@ from app.schemas.shelf import (
     ShelfItemResponse
 )
 from app.schemas.pagination import PaginatedResponse
-from app.schemas.author import BookAnalytics, AuthorDashboardStats
+from app.schemas.annotation import (
+    AnnotationBase,
+    AnnotationCreate,
+    AnnotationResponse
+)
 
 __all__ = [
     "UserBase",
@@ -35,6 +39,7 @@ __all__ = [
     "ShelfItemCreate",
     "ShelfItemResponse",
     "PaginatedResponse",
-    "BookAnalytics",
-    "AuthorDashboardStats"
+    "AnnotationBase",
+    "AnnotationCreate",
+    "AnnotationResponse"
 ]

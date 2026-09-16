@@ -12,6 +12,9 @@ from app.models.shelf import ShelfItem
 from app.models.user import User
 from app.models.enums import ShelfType, AvailabilityType
 from app.schemas.shelf import ShelfItemCreate, ShelfItemResponse
+from app.models.annotation import Annotation
+from app.schemas.annotation import AnnotationCreate, AnnotationResponse
+
 
 router = APIRouter()
 storage = get_storage()
@@ -117,3 +120,54 @@ def read_book_content(
         media_type=media_type,
         filename=os.path.basename(full_path)
     )
+
+
+@router.get("/books/{book_id}/annotations", response_model=List[AnnotationResponse])
+def get_book_annotations(
+    book_id: UUID,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
+):
+    return db.query(Annotation).filter(
+        Annotation.book_id == book_id,
+        Annotation.user_id == current_user.id
+    ).order_by(Annotation.created_at.desc()).all()
+
+
+@router.post("/books/{book_id}/annotations", response_model=AnnotationResponse, status_code=status.HTTP_201_CREATED)
+def create_annotation(
+    book_id: UUID,
+    anno_in: AnnotationCreate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
+):
+    annotation = Annotation(
+        user_id=current_user.id,
+        book_id=book_id,
+        cfi_range=anno_in.cfi_range,
+        highlighted_text=anno_in.highlighted_text,
+        note=anno_in.note,
+        color=anno_in.color
+    )
+    db.add(annotation)
+    db.commit()
+    db.refresh(annotation)
+    return annotation
+
+
+@router.delete("/annotations/{annotation_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_annotation(
+    annotation_id: UUID,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
+):
+    annotation = db.query(Annotation).filter(
+        Annotation.id == annotation_id,
+        Annotation.user_id == current_user.id
+    ).first()
+    if not annotation:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Annotation not found")
+
+    db.delete(annotation)
+    db.commit()
+    return None
