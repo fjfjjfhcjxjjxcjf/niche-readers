@@ -17,6 +17,7 @@ from app.schemas.shelf import (
     ShelfItemCreate,
     ShelfItemResponse
 )
+from app.schemas.pagination import PaginatedResponse
 
 __all__ = [
     "UserBase",
@@ -31,5 +32,6 @@ __all__ = [
     "BookUpdate",
     "BookResponse",
     "ShelfItemCreate",
-    "ShelfItemResponse"
+    "ShelfItemResponse",
+    "PaginatedResponse"
 ]

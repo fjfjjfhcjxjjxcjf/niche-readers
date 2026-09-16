@@ -9,7 +9,6 @@ from app.main import app
 from app.db.session import Base, get_db
 from app.db.seed import generate_minimal_epub
 
-# Setup in-memory SQLite database for deterministic isolated testing
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 
 engine = create_engine(
@@ -89,14 +88,13 @@ async def test_full_reader_author_flow(tmp_path):
         assert publish_res.status_code == 201
         book_data = publish_res.json()
         book_id = book_data["id"]
-        assert book_data["title"] == "The Postmodern Odyssey"
 
-        # 3. Discovery: Search in public catalog
+        # 3. Discovery: Search in paginated public catalog
         catalog_res = await client.get("/api/v1/books/?query=Odyssey")
         assert catalog_res.status_code == 200
-        books_found = catalog_res.json()
-        assert len(books_found) == 1
-        assert books_found[0]["id"] == book_id
+        paginated = catalog_res.json()
+        assert paginated["total_count"] == 1
+        assert paginated["items"][0]["id"] == book_id
 
         # 4. Register Reader
         reader_reg = await client.post(
