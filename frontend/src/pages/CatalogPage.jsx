@@ -113,7 +113,7 @@ export default function CatalogPage() {
                 onClick={() => fetchBooks(page - 1)}
                 style={{ padding: '8px 14px', border: '1px solid #cbd5e0', background: page <= 1 ? '#edf2f7' : '#fff', cursor: page <= 1 ? 'not-allowed' : 'pointer', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}
               >
-                <ChevronLeft size={16} /> Previous
+                Previous
               </button>
               <span style={{ fontSize: '14px', color: '#4a5568' }}>
                 Page {page} of {paginationMeta.total_pages}
@@ -123,7 +123,7 @@ export default function CatalogPage() {
                 onClick={() => fetchBooks(page + 1)}
                 style={{ padding: '8px 14px', border: '1px solid #cbd5e0', background: page >= paginationMeta.total_pages ? '#edf2f7' : '#fff', cursor: page >= paginationMeta.total_pages ? 'not-allowed' : 'pointer', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}
               >
-                Next <ChevronRight size={16} />
+                Next
               </button>
             </div>
           )}

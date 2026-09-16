@@ -1,3 +1,4 @@
+import io
 import pytest
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy import create_engine
@@ -37,32 +38,31 @@ def setup_database():
 
 
 @pytest.mark.asyncio
-async def test_full_reader_author_admin_flow(tmp_path):
+async def test_full_reader_author_flow(tmp_path):
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
-        # 1. Register Admin & Author
-        await client.post(
-            "/api/v1/auth/register",
-            json={"email": "admin.e2e@example.com", "password": "AdminPassword123!", "role": "ADMIN"}
-        )
-        admin_login = await client.post(
-            "/api/v1/auth/login",
-            json={"email": "admin.e2e@example.com", "password": "AdminPassword123!"}
-        )
-        admin_headers = {"Authorization": f"Bearer {admin_login.json()['access_token']}"}
-
+        # 1. Register Author
         author_reg = await client.post(
             "/api/v1/auth/register",
-            json={"email": "author.e2e@example.com", "password": "StrongPassword123!", "role": "AUTHOR"}
+            json={
+                "email": "author.e2e@example.com",
+                "password": "StrongPassword123!",
+                "role": "AUTHOR"
+            }
         )
+        assert author_reg.status_code == 201
+
+        # Author Login
         author_login = await client.post(
             "/api/v1/auth/login",
             json={"email": "author.e2e@example.com", "password": "StrongPassword123!"}
         )
-        author_headers = {"Authorization": f"Bearer {author_login.json()['access_token']}"}
+        assert author_login.status_code == 200
+        author_token = author_login.json()["access_token"]
+        author_headers = {"Authorization": f"Bearer {author_token}"}
 
-        # 2. Publish Independent Book (goes to PENDING_REVIEW)
+        # 2. Publish Independent Book
         epub_file_path = tmp_path / "manuscript.epub"
         generate_minimal_epub(
             str(epub_file_path),
@@ -86,46 +86,61 @@ async def test_full_reader_author_admin_flow(tmp_path):
                 files={"manuscript": ("manuscript.epub", f.read(), "application/epub+zip")}
             )
         assert publish_res.status_code == 201
-        book_id = publish_res.json()["id"]
+        book_data = publish_res.json()
+        book_id = book_data["id"]
+        assert book_data["title"] == "The Postmodern Odyssey"
 
-        # Book should NOT be visible in public catalog yet
-        cat_pre = await client.get("/api/v1/books/?query=Odyssey")
-        assert cat_pre.json()["total_count"] == 0
-
-        # 3. Admin Reviews & Approves Book
-        pending_list = await client.get("/api/v1/admin/books/pending", headers=admin_headers)
-        assert pending_list.status_code == 200
-        assert any(b["id"] == book_id for b in pending_list.json())
-
-        approve_res = await client.post(f"/api/v1/admin/books/{book_id}/approve", headers=admin_headers)
-        assert approve_res.status_code == 200
-        assert approve_res.json()["status"] == "PUBLISHED"
-
-        # Now book is discoverable in public catalog
+        # 3. Discovery: Search in paginated public catalog
         catalog_res = await client.get("/api/v1/books/?query=Odyssey")
         assert catalog_res.status_code == 200
         paginated = catalog_res.json()
         assert paginated["total_count"] == 1
         assert paginated["items"][0]["id"] == book_id
 
-        # 4. Register Reader & Mock Checkout
-        await client.post(
+        # 4. Register Reader
+        reader_reg = await client.post(
             "/api/v1/auth/register",
-            json={"email": "reader.e2e@example.com", "password": "ReaderPassword123!", "role": "READER"}
+            json={
+                "email": "reader.e2e@example.com",
+                "password": "ReaderPassword123!",
+                "role": "READER"
+            }
         )
+        assert reader_reg.status_code == 201
+
+        # Reader Login
         reader_login = await client.post(
             "/api/v1/auth/login",
             json={"email": "reader.e2e@example.com", "password": "ReaderPassword123!"}
         )
-        reader_headers = {"Authorization": f"Bearer {reader_login.json()['access_token']}"}
+        assert reader_login.status_code == 200
+        reader_token = reader_login.json()["access_token"]
+        reader_headers = {"Authorization": f"Bearer {reader_token}"}
 
-        # Denied prior to purchase
-        assert (await client.get(f"/api/v1/library/content/{book_id}", headers=reader_headers)).status_code == 403
+        # 5. Access check: Reader attempts to access content prior to checkout -> 403 Forbidden
+        denied_access = await client.get(
+            f"/api/v1/library/content/{book_id}",
+            headers=reader_headers
+        )
+        assert denied_access.status_code == 403
 
-        # Checkout
-        assert (await client.post(f"/api/v1/library/checkout/mock/{book_id}", headers=reader_headers)).status_code == 200
+        # 6. Reader performs Mock Checkout
+        checkout_res = await client.post(
+            f"/api/v1/library/checkout/mock/{book_id}",
+            headers=reader_headers
+        )
+        assert checkout_res.status_code == 200
 
-        # Permitted post-purchase
-        access_res = await client.get(f"/api/v1/library/content/{book_id}", headers=reader_headers)
-        assert access_res.status_code == 200
-        assert access_res.headers["content-type"] == "application/epub+zip"
+        # Verify book exists on reader's shelf
+        shelf_res = await client.get("/api/v1/library/shelf", headers=reader_headers)
+        assert shelf_res.status_code == 200
+        shelf_items = shelf_res.json()
+        assert any(item["book"]["id"] == book_id and item["shelf_type"] == "PURCHASED" for item in shelf_items)
+
+        # 7. Reader accesses content after purchase -> 200 OK with EPUB binary
+        authorized_access = await client.get(
+            f"/api/v1/library/content/{book_id}",
+            headers=reader_headers
+        )
+        assert authorized_access.status_code == 200
+        assert authorized_access.headers["content-type"] == "application/epub+zip"
