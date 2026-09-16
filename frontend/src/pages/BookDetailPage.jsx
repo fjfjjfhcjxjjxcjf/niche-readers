@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { BookOpen, ExternalLink, BookmarkPlus, CheckCircle } from 'lucide-react';
+import { BookOpen, ExternalLink, BookmarkPlus, User } from 'lucide-react';
 
 export default function BookDetailPage() {
   const { id } = useParams();
@@ -46,7 +46,17 @@ export default function BookDetailPage() {
           {book.availability_type.replace(/_/g, ' ')}
         </span>
         <h1 style={{ margin: '14px 0 6px 0' }}>{book.title}</h1>
-        <h3 style={{ margin: '0 0 20px 0', color: '#4a5568', fontWeight: 400 }}>Author: {book.author_name}</h3>
+
+        <div style={{ margin: '0 0 20px 0', fontSize: '15px', color: '#4a5568' }}>
+          Author:{' '}
+          {book.author_profile_id ? (
+            <Link to={`/author/${book.author_profile_id}`} style={{ color: '#2b6cb0', textDecoration: 'none', fontWeight: 600 }}>
+              {book.author_name}
+            </Link>
+          ) : (
+            <strong>{book.author_name}</strong>
+          )}
+        </div>
 
         <div style={{ margin: '20px 0', borderTop: '1px solid #edf2f7', borderBottom: '1px solid #edf2f7', padding: '16px 0' }}>
           <p style={{ lineHeight: '1.6', color: '#2d3748' }}>{book.description || 'No description available.'}</p>

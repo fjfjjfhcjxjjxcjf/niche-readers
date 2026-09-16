@@ -6,6 +6,7 @@ import CatalogPage from './pages/CatalogPage';
 import BookDetailPage from './pages/BookDetailPage';
 import PublishPage from './pages/author/PublishPage';
 import AuthorDashboardPage from './pages/author/AuthorDashboardPage';
+import AuthorPublicProfilePage from './pages/author/AuthorPublicProfilePage';
 import LibraryPage from './pages/LibraryPage';
 import ReaderPage from './pages/ReaderPage';
 import LoginPage from './pages/LoginPage';
@@ -20,6 +21,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<CatalogPage />} />
             <Route path="/book/:id" element={<BookDetailPage />} />
+            <Route path="/author/:id" element={<AuthorPublicProfilePage />} />
             <Route path="/publish" element={<PublishPage />} />
             <Route path="/author/dashboard" element={<AuthorDashboardPage />} />
             <Route path="/admin/review" element={<AdminReviewPage />} />

@@ -23,6 +23,10 @@ from app.schemas.annotation import (
     AnnotationCreate,
     AnnotationResponse
 )
+from app.schemas.author_profile import (
+    AuthorProfileUpdate,
+    AuthorPublicProfileResponse
+)
 
 __all__ = [
     "UserBase",
@@ -41,5 +45,7 @@ __all__ = [
     "PaginatedResponse",
     "AnnotationBase",
     "AnnotationCreate",
-    "AnnotationResponse"
+    "AnnotationResponse",
+    "AuthorProfileUpdate",
+    "AuthorPublicProfileResponse"
 ]

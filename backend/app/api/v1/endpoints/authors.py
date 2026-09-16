@@ -9,10 +9,11 @@ from app.api import deps
 from app.core.storage import get_storage
 from app.models.book import Book
 from app.models.shelf import ShelfItem
-from app.models.user import User
+from app.models.user import User, AuthorProfile
 from app.models.enums import UserRole, AvailabilityType, BookStatus, ShelfType
 from app.schemas.book import BookResponse, BookUpdate
 from app.schemas.author import AuthorDashboardStats, BookAnalytics
+from app.schemas.author_profile import AuthorProfileUpdate, AuthorPublicProfileResponse
 
 router = APIRouter()
 storage = get_storage()
@@ -63,7 +64,6 @@ async def publish_author_book(
     author_profile = current_user.author_profile
     author_name = author_profile.display_name if author_profile else current_user.email.split("@")[0]
 
-    # Books are placed into PENDING_REVIEW queue for editorial oversight
     book = Book(
         title=title,
         author_name=author_name,
@@ -155,3 +155,78 @@ def update_author_book(
     db.commit()
     db.refresh(book)
     return book
+
+
+@router.put("/profile/me", response_model=AuthorPublicProfileResponse)
+def update_my_author_profile(
+    profile_in: AuthorProfileUpdate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.require_role(UserRole.AUTHOR))
+):
+    profile = current_user.author_profile
+    if not profile:
+        profile = AuthorProfile(user_id=current_user.id, display_name=current_user.email.split("@")[0])
+        db.add(profile)
+        db.flush()
+
+    for field, val in profile_in.model_dump(exclude_unset=True).items():
+        if val is not None:
+            setattr(profile, field, val)
+
+    db.commit()
+    db.refresh(profile)
+
+    count = db.query(Book).filter(
+        Book.author_profile_id == profile.id,
+        Book.status == BookStatus.PUBLISHED
+    ).count()
+
+    return AuthorPublicProfileResponse(
+        id=profile.id,
+        display_name=profile.display_name,
+        bio=profile.bio,
+        avatar_url=profile.avatar_url,
+        website_url=profile.website_url,
+        created_at=profile.created_at,
+        published_books_count=count
+    )
+
+
+@router.get("/{author_id}/public", response_model=AuthorPublicProfileResponse)
+def get_public_author_profile(
+    author_id: uuid.UUID,
+    db: Session = Depends(deps.get_db)
+):
+    profile = db.query(AuthorProfile).filter(AuthorProfile.id == author_id).first()
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Author profile not found")
+
+    count = db.query(Book).filter(
+        Book.author_profile_id == profile.id,
+        Book.status == BookStatus.PUBLISHED
+    ).count()
+
+    return AuthorPublicProfileResponse(
+        id=profile.id,
+        display_name=profile.display_name,
+        bio=profile.bio,
+        avatar_url=profile.avatar_url,
+        website_url=profile.website_url,
+        created_at=profile.created_at,
+        published_books_count=count
+    )
+
+
+@router.get("/{author_id}/books", response_model=List[BookResponse])
+def get_public_author_books(
+    author_id: uuid.UUID,
+    db: Session = Depends(deps.get_db)
+):
+    profile = db.query(AuthorProfile).filter(AuthorProfile.id == author_id).first()
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Author profile not found")
+
+    return db.query(Book).filter(
+        Book.author_profile_id == profile.id,
+        Book.status == BookStatus.PUBLISHED
+    ).order_by(Book.created_at.desc()).all()
