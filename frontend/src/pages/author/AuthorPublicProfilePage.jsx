@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../../services/api';
-import { Globe, BookOpen, User, Calendar } from 'lucide-react';
+import { Globe, BookOpen, User } from 'lucide-react';
 
 export default function AuthorPublicProfilePage() {
   const { id } = useParams();
