@@ -18,6 +18,7 @@ from app.schemas.shelf import (
     ShelfItemResponse
 )
 from app.schemas.pagination import PaginatedResponse
+from app.schemas.author import BookAnalytics, AuthorDashboardStats
 
 __all__ = [
     "UserBase",
@@ -33,5 +34,7 @@ __all__ = [
     "BookResponse",
     "ShelfItemCreate",
     "ShelfItemResponse",
-    "PaginatedResponse"
+    "PaginatedResponse",
+    "BookAnalytics",
+    "AuthorDashboardStats"
 ]

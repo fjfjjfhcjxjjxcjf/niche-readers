@@ -1,15 +1,20 @@
 import os
 import uuid
 from decimal import Decimal
+from typing import List
+from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.api import deps
 from app.core.storage import get_storage
 from app.models.book import Book
+from app.models.shelf import ShelfItem
 from app.models.user import User
-from app.models.enums import UserRole, AvailabilityType, BookStatus
-from app.schemas.book import BookResponse
+from app.models.enums import UserRole, AvailabilityType, BookStatus, ShelfType
+from app.schemas.book import BookResponse, BookUpdate
+from app.schemas.author import AuthorDashboardStats, BookAnalytics
 
 router = APIRouter()
 storage = get_storage()
@@ -31,7 +36,6 @@ async def publish_author_book(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.require_role(UserRole.AUTHOR))
 ):
-    # Validate manuscript extension
     ext = os.path.splitext(manuscript.filename)[1].lower()
     if ext not in ALLOWED_MANUSCRIPT_EXTENSIONS:
         raise HTTPException(
@@ -77,6 +81,85 @@ async def publish_author_book(
         cover_image_url=saved_cover_path
     )
     db.add(book)
+    db.commit()
+    db.refresh(book)
+    return book
+
+
+@router.get("/dashboard", response_model=AuthorDashboardStats)
+def get_author_dashboard(
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.require_role(UserRole.AUTHOR))
+):
+    profile = current_user.author_profile
+    if not profile:
+        return {
+            "total_books": 0,
+            "total_readers": 0,
+            "total_revenue": Decimal("0.00"),
+            "books": []
+        }
+
+    author_books = db.query(Book).filter(Book.author_profile_id == profile.id).all()
+    analytics_list = []
+    overall_revenue = Decimal("0.00")
+    total_purchases_count = 0
+
+    for book in author_books:
+        purchases = db.query(ShelfItem).filter(
+            ShelfItem.book_id == book.id,
+            ShelfItem.shelf_type == ShelfType.PURCHASED
+        ).count()
+
+        saves = db.query(ShelfItem).filter(
+            ShelfItem.book_id == book.id,
+            ShelfItem.shelf_type.in_([ShelfType.WANT_TO_READ, ShelfType.READING, ShelfType.FAVORITES])
+        ).count()
+
+        book_revenue = Decimal(str(book.price)) * Decimal(purchases)
+        overall_revenue += book_revenue
+        total_purchases_count += purchases
+
+        analytics_list.append(
+            BookAnalytics(
+                book_id=book.id,
+                title=book.title,
+                price=book.price,
+                status=book.status,
+                total_purchases=purchases,
+                total_revenue=book_revenue,
+                shelf_saves_count=saves
+            )
+        )
+
+    return {
+        "total_books": len(author_books),
+        "total_readers": total_purchases_count,
+        "total_revenue": overall_revenue,
+        "books": analytics_list
+    }
+
+
+@router.patch("/books/{book_id}", response_model=BookResponse)
+def update_author_book(
+    book_id: UUID,
+    book_in: BookUpdate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.require_role(UserRole.AUTHOR))
+):
+    profile = current_user.author_profile
+    book = db.query(Book).filter(
+        Book.id == book_id,
+        Book.author_profile_id == (profile.id if profile else None)
+    ).first()
+
+    if not book:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found or access denied")
+
+    update_data = book_in.model_dump(exclude_unset=True)
+    for field, val in update_data.items():
+        setattr(book, field, val)
+
     db.commit()
     db.refresh(book)
     return book

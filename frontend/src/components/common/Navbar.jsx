@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { BookOpen, Library, PlusCircle, LogOut, User } from 'lucide-react';
+import { BookOpen, Library, PlusCircle, LayoutDashboard, LogOut } from 'lucide-react';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -9,16 +9,25 @@ export default function Navbar() {
 
   return (
     <nav style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
         <Link to="/" style={{ textDecoration: 'none', fontWeight: 'bold', fontSize: '18px', color: '#1a202c', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <BookOpen size={20} /> NicheReader
         </Link>
         <Link to="/" style={{ textDecoration: 'none', color: '#4a5568' }}>Catalog</Link>
-        {user && <Link to="/library" style={{ textDecoration: 'none', color: '#4a5568', display: 'flex', alignItems: 'center', gap: '4px' }}><Library size={16} /> My Shelf</Link>}
-        {user?.role === 'AUTHOR' && (
-          <Link to="/publish" style={{ textDecoration: 'none', color: '#2b6cb0', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 500 }}>
-            <PlusCircle size={16} /> Publish Book
+        {user && (
+          <Link to="/library" style={{ textDecoration: 'none', color: '#4a5568', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <Library size={16} /> My Shelf
           </Link>
+        )}
+        {user?.role === 'AUTHOR' && (
+          <>
+            <Link to="/author/dashboard" style={{ textDecoration: 'none', color: '#2b6cb0', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 500 }}>
+              <LayoutDashboard size={16} /> Author Studio
+            </Link>
+            <Link to="/publish" style={{ textDecoration: 'none', color: '#4a5568', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <PlusCircle size={16} /> Publish
+            </Link>
+          </>
         )}
       </div>
       <div>

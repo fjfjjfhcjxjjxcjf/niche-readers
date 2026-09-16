@@ -5,6 +5,7 @@ import Navbar from './components/common/Navbar';
 import CatalogPage from './pages/CatalogPage';
 import BookDetailPage from './pages/BookDetailPage';
 import PublishPage from './pages/author/PublishPage';
+import AuthorDashboardPage from './pages/author/AuthorDashboardPage';
 import LibraryPage from './pages/LibraryPage';
 import ReaderPage from './pages/ReaderPage';
 import LoginPage from './pages/LoginPage';
@@ -19,6 +20,7 @@ export default function App() {
             <Route path="/" element={<CatalogPage />} />
             <Route path="/book/:id" element={<BookDetailPage />} />
             <Route path="/publish" element={<PublishPage />} />
+            <Route path="/author/dashboard" element={<AuthorDashboardPage />} />
             <Route path="/library" element={<LibraryPage />} />
             <Route path="/reader/:id" element={<ReaderPage />} />
             <Route path="/login" element={<LoginPage />} />
