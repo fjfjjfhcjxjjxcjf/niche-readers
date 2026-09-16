@@ -155,7 +155,7 @@ def seed_database():
                 language="en",
                 publication_year=2024,
                 availability_type=AvailabilityType.MARKETPLACE,
-                status=BookStatus.PUBLISHED,
+                status=BookStatus.PENDING_REVIEW,
                 price=Decimal("4.99"),
                 file_path=market_epub_rel,
                 file_format="EPUB"
