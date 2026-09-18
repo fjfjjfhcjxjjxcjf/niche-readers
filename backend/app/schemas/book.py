@@ -16,6 +16,10 @@ class BookBase(BaseModel):
     availability_type: AvailabilityType = AvailabilityType.MARKETPLACE
     price: Decimal = Decimal("0.00")
     external_url: Optional[str] = None
+    isbn: Optional[str] = None
+    original_publisher: Optional[str] = None
+    rights_statement: Optional[str] = None
+    page_count: Optional[int] = None
 
 
 class BookCreate(BookBase):
@@ -32,6 +36,10 @@ class BookUpdate(BaseModel):
     price: Optional[Decimal] = None
     status: Optional[BookStatus] = None
     external_url: Optional[str] = None
+    isbn: Optional[str] = None
+    original_publisher: Optional[str] = None
+    rights_statement: Optional[str] = None
+    page_count: Optional[int] = None
 
 
 class BookResponse(BookBase):

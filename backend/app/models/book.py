@@ -21,12 +21,18 @@ class Book(Base):
     publication_year = Column(Integer, nullable=True)
     cover_image_url = Column(String(500), nullable=True)
 
+    # Enhanced bibliographic & legal metadata
+    isbn = Column(String(20), nullable=True, index=True)
+    original_publisher = Column(String(200), nullable=True)
+    rights_statement = Column(String(300), nullable=True)
+    page_count = Column(Integer, nullable=True)
+
     availability_type = Column(Enum(AvailabilityType), nullable=False, default=AvailabilityType.MARKETPLACE)
     status = Column(Enum(BookStatus), nullable=False, default=BookStatus.DRAFT)
     price = Column(Numeric(10, 2), default=0.00, nullable=False)
 
     file_path = Column(String(500), nullable=True)
-    file_format = Column(String(10), nullable=True)  # EPUB, PDF
+    file_format = Column(String(10), nullable=True) # EPUB, PDF
     external_url = Column(String(500), nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

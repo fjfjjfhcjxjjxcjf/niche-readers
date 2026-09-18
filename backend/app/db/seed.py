@@ -1,4 +1,5 @@
 import os
+import uuid
 import zipfile
 from decimal import Decimal
 from sqlalchemy.orm import Session
@@ -60,7 +61,17 @@ def seed_database():
     db: Session = SessionLocal()
 
     try:
-        # 1. Author Account
+        # 1. Admin Account
+        admin_user = db.query(User).filter(User.email == "admin@example.com").first()
+        if not admin_user:
+            admin_user = User(
+                email="admin@example.com",
+                hashed_password=get_password_hash("AdminPass123!"),
+                role=UserRole.ADMIN
+            )
+            db.add(admin_user)
+
+        # 2. Author Account
         author_user = db.query(User).filter(User.email == "author@example.com").first()
         if not author_user:
             author_user = User(
@@ -79,7 +90,7 @@ def seed_database():
             db.add(profile)
             db.flush()
 
-        # 2. Reader Account
+        # 3. Reader Account
         reader_user = db.query(User).filter(User.email == "reader@example.com").first()
         if not reader_user:
             reader_user = User(
@@ -90,9 +101,8 @@ def seed_database():
             db.add(reader_user)
             db.flush()
 
-        # 3. Seed Public Domain Book with Real Valid EPUB
-        epub_filename = f"seed-yellow-wallpaper.epub"
-        epub_rel_path = os.path.join("manuscripts", epub_filename)
+        # 4. Seed Public Domain Book
+        epub_rel_path = os.path.join("manuscripts", "seed-yellow-wallpaper.epub")
         epub_abs_path = os.path.join(settings.LOCAL_STORAGE_DIR, epub_rel_path)
 
         generate_minimal_epub(
@@ -111,6 +121,10 @@ def seed_database():
                 genre="Gothic / Psychological",
                 language="en",
                 publication_year=1892,
+                isbn="978-0-14-310634-0",
+                rights_statement="Public Domain worldwide.",
+                page_count=64,
+                original_publisher="The New England Magazine",
                 availability_type=AvailabilityType.PUBLIC_DOMAIN,
                 status=BookStatus.PUBLISHED,
                 price=Decimal("0.00"),
@@ -119,7 +133,7 @@ def seed_database():
             )
             db.add(book_pd)
 
-        # 4. Seed External Legal Book
+        # 5. Seed External Legal Book
         book_ext = db.query(Book).filter(Book.title == "The Passion of New Eve").first()
         if not book_ext:
             book_ext = Book(
@@ -129,6 +143,10 @@ def seed_database():
                 genre="Speculative Fiction",
                 language="en",
                 publication_year=1977,
+                isbn="978-0-09-959828-2",
+                original_publisher="Gollancz",
+                rights_statement="All rights reserved by publisher / estate.",
+                page_count=192,
                 availability_type=AvailabilityType.EXTERNAL_LEGAL,
                 status=BookStatus.PUBLISHED,
                 price=Decimal("0.00"),
@@ -136,7 +154,7 @@ def seed_database():
             )
             db.add(book_ext)
 
-        # 5. Seed Author Marketplace Book
+        # 6. Seed Author Marketplace Book
         book_market = db.query(Book).filter(Book.title == "Architectures of Silence").first()
         if not book_market:
             market_epub_rel = os.path.join("manuscripts", "seed-architectures.epub")
@@ -154,8 +172,10 @@ def seed_database():
                 genre="Fiction / Niche",
                 language="en",
                 publication_year=2024,
+                rights_statement="Copyright © 2024 Elena Vance. Direct Author Distribution.",
+                page_count=128,
                 availability_type=AvailabilityType.MARKETPLACE,
-                status=BookStatus.PENDING_REVIEW,
+                status=BookStatus.PUBLISHED,
                 price=Decimal("4.99"),
                 file_path=market_epub_rel,
                 file_format="EPUB"
@@ -163,7 +183,7 @@ def seed_database():
             db.add(book_market)
 
         db.commit()
-        print("Database seeded successfully with sample users and books.")
+        print("Database seeded successfully with sample users and bibliographic metadata.")
     except Exception as e:
         db.rollback()
         raise e

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { BookOpen, ExternalLink, BookmarkPlus, User } from 'lucide-react';
+import { BookOpen, ExternalLink, BookmarkPlus, ShieldCheck } from 'lucide-react';
 
 export default function BookDetailPage() {
   const { id } = useParams();
@@ -40,13 +40,21 @@ export default function BookDetailPage() {
   if (!book) return <div style={{ padding: '40px', textAlign: 'center' }}>Loading book...</div>;
 
   return (
-    <div style={{ maxWidth: '800px', margin: '40px auto', padding: '0 20px' }}>
+    <div style={{ maxWidth: '840px', margin: '40px auto', padding: '0 20px' }}>
       <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '30px' }}>
-        <span style={{ fontSize: '12px', fontWeight: 'bold', padding: '4px 8px', borderRadius: '4px', background: '#edf2f7' }}>
-          {book.availability_type.replace(/_/g, ' ')}
-        </span>
-        <h1 style={{ margin: '14px 0 6px 0' }}>{book.title}</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
+          <span style={{ fontSize: '12px', fontWeight: 'bold', padding: '4px 8px', borderRadius: '4px', background: '#edf2f7' }}>
+            {book.availability_type.replace(/_/g, ' ')}
+          </span>
+          {book.rights_statement && (
+            <span style={{ fontSize: '12px', color: '#2b6cb0', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <ShieldCheck size={14} /> {book.rights_statement}
+            </span>
+          )}
+        </div>
 
+        <h1 style={{ margin: '14px 0 6px 0' }}>{book.title}</h1>
+        
         <div style={{ margin: '0 0 20px 0', fontSize: '15px', color: '#4a5568' }}>
           Author:{' '}
           {book.author_profile_id ? (
@@ -60,10 +68,15 @@ export default function BookDetailPage() {
 
         <div style={{ margin: '20px 0', borderTop: '1px solid #edf2f7', borderBottom: '1px solid #edf2f7', padding: '16px 0' }}>
           <p style={{ lineHeight: '1.6', color: '#2d3748' }}>{book.description || 'No description available.'}</p>
-          <div style={{ display: 'flex', gap: '20px', fontSize: '13px', color: '#718096', marginTop: '12px' }}>
-            <span>Language: {book.language.toUpperCase()}</span>
-            <span>Published: {book.publication_year || 'N/A'}</span>
-            <span>Format: {book.file_format || 'Metadata Only'}</span>
+          
+          {/* Detailed Bibliographic Metadata Table */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '12px', fontSize: '13px', color: '#718096', marginTop: '16px', background: '#f8fafc', padding: '14px', borderRadius: '6px' }}>
+            <div><strong>Language:</strong> {book.language.toUpperCase()}</div>
+            <div><strong>Year:</strong> {book.publication_year || 'N/A'}</div>
+            <div><strong>Format:</strong> {book.file_format || 'EPUB'}</div>
+            {book.isbn && <div><strong>ISBN:</strong> {book.isbn}</div>}
+            {book.page_count && <div><strong>Pages:</strong> ~{book.page_count}</div>}
+            {book.original_publisher && <div><strong>Publisher:</strong> {book.original_publisher}</div>}
           </div>
         </div>
 
