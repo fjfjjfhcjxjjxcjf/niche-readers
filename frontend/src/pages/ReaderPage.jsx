@@ -9,7 +9,8 @@ import {
   List, 
   Highlighter, 
   Trash2,
-  Check
+  Check,
+  Download
 } from 'lucide-react';
 
 const THEMES = {
@@ -49,6 +50,7 @@ export default function ReaderPage() {
   const viewerRef = useRef(null);
   const renditionRef = useRef(null);
   const bookRef = useRef(null);
+  const [book, setBook] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -80,6 +82,15 @@ export default function ReaderPage() {
     });
   };
 
+  const loadBookMetadata = async () => {
+    try {
+      const res = await api.get(`/books/${id}`);
+      setBook(res.data);
+    } catch (e) {
+      console.warn("Could not fetch book metadata:", e);
+    }
+  };
+
   const loadAnnotations = async () => {
     try {
       const res = await api.get(`/library/books/${id}/annotations`);
@@ -92,25 +103,26 @@ export default function ReaderPage() {
   };
 
   useEffect(() => {
-    let book = null;
+    let bookInstance = null;
 
     const loadBookStream = async () => {
       try {
         setLoading(true);
-        const [bookResponse, remoteAnnotations] = await Promise.all([
-          api.get(`/library/content/${id}`, { responseType: 'arraybuffer' }),
-          loadAnnotations()
+        const [remoteAnnotations] = await Promise.all([
+          loadAnnotations(),
+          loadBookMetadata()
         ]);
 
-        book = ePub(bookResponse.data);
-        bookRef.current = book;
+        const bookResponse = await api.get(`/library/content/${id}`, { responseType: 'arraybuffer' });
+        bookInstance = ePub(bookResponse.data);
+        bookRef.current = bookInstance;
 
-        const navigation = await book.loaded.navigation;
+        const navigation = await bookInstance.loaded.navigation;
         if (navigation && navigation.toc) {
           setToc(navigation.toc);
         }
 
-        const rendition = book.renderTo(viewerRef.current, {
+        const rendition = bookInstance.renderTo(viewerRef.current, {
           width: '100%',
           height: '620px',
           flow: 'paginated',
@@ -130,7 +142,7 @@ export default function ReaderPage() {
 
         // Listen for text selection
         rendition.on('selected', (cfiRange, contents) => {
-          book.getRange(cfiRange).then((range) => {
+          bookInstance.getRange(cfiRange).then((range) => {
             if (range) {
               const text = range.toString();
               if (text.trim()) {
@@ -159,7 +171,7 @@ export default function ReaderPage() {
     loadBookStream();
 
     return () => {
-      if (book) book.destroy();
+      if (bookInstance) bookInstance.destroy();
     };
   }, [id]);
 
@@ -175,6 +187,24 @@ export default function ReaderPage() {
     setFontSize(newSize);
     if (renditionRef.current) {
       renditionRef.current.themes.fontSize(`${newSize}%`);
+    }
+  };
+
+  const handleExportMarkdown = async () => {
+    try {
+      const response = await api.get(`/library/annotations/${id}/export/markdown`, {
+        responseType: 'blob'
+      });
+      const blob = new Blob([response.data], { type: 'text/markdown;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${book?.title || 'book'}_notes.md`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to export notes.');
     }
   };
 
@@ -305,7 +335,17 @@ export default function ReaderPage() {
         {/* Annotations List Drawer */}
         {showNotes && (
           <div style={{ background: currentTheme === 'dark' ? '#2d3748' : '#fff', border: `1px solid ${currentTheme === 'dark' ? '#4a5568' : '#e2e8f0'}`, borderRadius: '8px', padding: '16px', marginBottom: '16px', maxHeight: '240px', overflowY: 'auto' }}>
-            <h4 style={{ margin: '0 0 12px 0', fontSize: '14px' }}>Saved Highlights & Notes</h4>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <h4 style={{ margin: 0, fontSize: '14px' }}>Saved Highlights & Notes</h4>
+              {annotations.length > 0 && (
+                <button
+                  onClick={handleExportMarkdown}
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#edf2f7', border: '1px solid #cbd5e0', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', cursor: 'pointer', fontWeight: 600, color: '#2d3748' }}
+                >
+                  <Download size={12} /> Export .MD
+                </button>
+              )}
+            </div>
             {annotations.length === 0 ? <p style={{ fontSize: '13px', color: '#a0aec0' }}>Select any text in the book to create your first highlight.</p> : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {annotations.map((a) => (
