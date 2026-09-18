@@ -58,7 +58,7 @@ All tests passing green under `pytest -v`:
 
 When resuming the next session, we are scheduled to implement the remaining two production hardening milestones:
 
-1. **Step 2 — Cover Image Optimization Pipeline:**
+1. **Step 2 — Cover Image Optimization Pipeline: [COMPLETED]**
    - Auto-convert uploaded covers to WebP format.
    - Generate thumbnails for fast catalog rendering.
 2. **Step 3 — Enhanced Bibliographic & Rights Metadata:**

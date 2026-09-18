@@ -1,3 +1,4 @@
+import io
 import os
 import uuid
 from decimal import Decimal
@@ -7,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.api import deps
 from app.core.storage import get_storage
+from app.core.image_processor import optimize_cover_image
 from app.models.book import Book
 from app.models.shelf import ShelfItem
 from app.models.user import User, AuthorProfile
@@ -54,9 +56,11 @@ async def publish_author_book(
     if cover_image:
         cover_ext = os.path.splitext(cover_image.filename)[1].lower()
         if cover_ext in ALLOWED_IMAGE_EXTENSIONS:
-            cover_filename = f"{uuid.uuid4()}{cover_ext}"
+            raw_cover_bytes = await cover_image.read()
+            optimized_webp = optimize_cover_image(raw_cover_bytes)
+            cover_filename = f"{uuid.uuid4()}.webp"
             saved_cover_path = storage.save_file(
-                cover_image.file,
+                io.BytesIO(optimized_webp),
                 cover_filename,
                 subfolder="covers"
             )
