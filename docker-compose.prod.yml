@@ -1,0 +1,75 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: book_platform_db_prod
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-book_platform_prod}
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+    networks:
+      - internal_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: book_platform_backend_prod
+    restart: always
+    env_file:
+      - ./backend/.env
+    environment:
+      - ENVIRONMENT=production
+      - DEBUG=False
+    volumes:
+      - backend_uploads_prod:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - internal_network
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile.prod
+    container_name: book_platform_web_prod
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - certbot_etc:/etc/letsencrypt
+      - certbot_var:/var/www/certbot
+    depends_on:
+      - backend
+    networks:
+      - internal_network
+
+  certbot:
+    image: certbot/certbot
+    container_name: book_platform_certbot
+    volumes:
+      - certbot_etc:/etc/letsencrypt
+      - certbot_var:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12d & wait $$!; done;'"
+
+networks:
+  internal_network:
+    driver: bridge
+
+volumes:
+  postgres_data_prod:
+  backend_uploads_prod:
+  certbot_etc:
+  certbot_var:
