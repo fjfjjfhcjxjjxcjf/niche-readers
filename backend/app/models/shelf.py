@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, DateTime, Enum, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, DateTime, Enum, ForeignKey, UniqueConstraint, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.db.session import Base
@@ -22,3 +22,16 @@ class ShelfItem(Base):
 
     user = relationship("User", back_populates="shelf_items")
     book = relationship("Book", back_populates="shelf_items")
+
+
+class ReadingSession(Base):
+    __tablename__ = "reading_sessions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    book_id = Column(UUID(as_uuid=True), ForeignKey("books.id", ondelete="CASCADE"), nullable=False, index=True)
+    duration_seconds = Column(Integer, default=60, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    user = relationship("User")
+    book = relationship("Book")

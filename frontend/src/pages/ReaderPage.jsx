@@ -102,6 +102,16 @@ export default function ReaderPage() {
     }
   };
 
+  // Heartbeat reader activity ping (every 60s)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (id) {
+        api.post('/library/stats/ping', { book_id: id, duration_seconds: 60 }).catch(() => {});
+      }
+    }, 60000);
+    return () => clearInterval(timer);
+  }, [id]);
+
   useEffect(() => {
     let bookInstance = null;
 
